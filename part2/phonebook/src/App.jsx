@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import Filter from "./components/Filter";
 import Form from "./components/Form";
 import Display from "./components/Display";
-import axios from "axios";
+import personService from "./services/persons";
 
 const App = () => {
   const [persons, setPersons] = useState([]);
@@ -11,8 +11,8 @@ const App = () => {
   const [filterName, setFilterName] = useState("");
 
   useEffect(() => {
-    axios.get("http://localhost:3001/persons").then((response) => {
-      setPersons(response.data);
+    personService.getAll().then((initialPersons) => {
+      setPersons(initialPersons);
     });
   });
 
@@ -28,21 +28,47 @@ const App = () => {
     setFilterName(event.target.value);
   };
 
+  const deletePerson = (id) => () => {
+    const person = persons.find((p) => p.id === id);
+
+    if (window.confirm(`Delete '${person.name}'?`)) {
+      personService
+        .destroy(id)
+        .then((deletedPerson) =>
+          setPersons(persons.filter((p) => p.id !== deletedPerson.id))
+        );
+    }
+  };
+
   const handleSubmit = (event) => {
     event.preventDefault();
 
-    const person = { name: newName, number: newNumber };
-
-    const personExists = persons.find((p) => p.name === newName);
+    const personExists = persons.some((p) => p.name === newName);
 
     if (personExists) {
-      alert(`${person.name} is already added to phonebook`);
+      if (
+        window.confirm(
+          `${newName} is already added to phonebook, replace the old number with a new one?`
+        )
+      ) {
+        const person = persons.find((p) => p.name === newName);
+        const updatedPerson = { ...person, number: newNumber };
+        personService.update(updatedPerson).then((returnedPerson) => {
+          setPersons(
+            persons.map((p) =>
+              p.id === returnedPerson.id ? returnedPerson : p
+            )
+          );
+        });
+      }
       return null;
     }
 
-    const updatedPersons = [...persons];
-    updatedPersons.push(person);
-    setPersons(updatedPersons);
+    const person = { name: newName, number: newNumber };
+
+    personService.create(person).then((returnedPerson) => {
+      setPersons(persons.concat(returnedPerson));
+    });
 
     setNewName("");
     setNewNumber("");
@@ -72,7 +98,7 @@ const App = () => {
 
       <h2>Numbers</h2>
 
-      <Display persons={personsToDisplay} />
+      <Display persons={personsToDisplay} onDelete={deletePerson} />
     </div>
   );
 };
